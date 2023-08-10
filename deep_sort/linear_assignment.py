@@ -1,7 +1,9 @@
 # vim: expandtab:ts=4:sw=4
 from __future__ import absolute_import
 import numpy as np
-from sklearn.utils.linear_assignment_ import linear_assignment
+#sklearn.utils.linear_assignment no longer exists 
+#from sklearn.utils.linear_assignment_ import linear_assignment
+from scipy.optimize import linear_sum_assignment 
 from . import kalman_filter
 
 
@@ -188,3 +190,13 @@ def gate_cost_matrix(
             track.mean, track.covariance, measurements, only_position)
         cost_matrix[row, gating_distance > gating_threshold] = gated_cost
     return cost_matrix
+
+def linear_assignment(cost_matrix):
+    """
+    Converts the tuple of numpy arrays from the newer function linear_sum_assignments
+    into numpy array as expected from the older function linear_assignment
+    """
+    indices = linear_sum_assignment(cost_matrix)  
+    indices = np.asarray(indices)
+    indices = np.transpose(indices)
+    return indices
