@@ -1,0 +1,233 @@
+[33mcommit 6a2db9877376a1977c153994ca6bb0d92381cffd[m[33m ([m[1;36mHEAD -> [m[1;32mmaster[m[33m)[m
+Author: Jakob <jakob.h.f.huesken@gmail.com>
+Date:   Mon Mar 27 20:00:56 2023 +0200
+
+    created MyTestClass.py
+
+[33mcommit df634e2e29db0bd5c7b34b2beb3ab92f01c32920[m[33m ([m[1;31morigin/master[m[33m)[m
+Author: Jakob <jakob.h.f.huesken@gmail.com>
+Date:   Wed Oct 18 11:19:27 2023 +0200
+
+    added generate_detections.cpp
+
+[33mcommit 6c4b6aa95ce524af772e1ce24f1e8489f031f74a[m
+Author: Jakob <jakob.h.f.huesken@gmail.com>
+Date:   Thu Aug 10 14:41:02 2023 +0200
+
+    changed linear_assignment to fit with current version of scipy
+
+[33mcommit 280b8bdb255f223813ff4a8679f3e1321b08cdfc[m
+Author: Nikhil <tee15b014@iittp.ac.in>
+Date:   Mon Apr 1 12:52:09 2019 +0000
+
+    Fixed the display flag (#142)
+    
+    * Fixed the display flag
+    
+    * Update deep_sort_app.py
+
+[33mcommit 53ee00b894c57483aba293894b2fd8ff91cac009[m
+Author: iory <yanokura@jsk.imi.i.u-tokyo.ac.jp>
+Date:   Mon Jan 7 16:30:41 2019 +0900
+
+    Add backslash for command (#102)
+
+[33mcommit dc8835f8f19a54b49cedb39cc3ed502259c0e6e3[m
+Author: Nicolai Wojke <nwojke@users.noreply.github.com>
+Date:   Mon Jan 7 08:29:11 2019 +0100
+
+    Fixed link to Google drive resources
+
+[33mcommit c62e1e061cc4dcec6a29356fc0d05cc5d7b7c980[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Sun Oct 28 17:41:26 2018 +0100
+
+    Fixed link to pre-generated detections
+
+[33mcommit 053b9baa40c2ae907a5f915be8c26576246c45e6[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Sun Oct 28 15:04:58 2018 +0100
+
+    Updated download link
+
+[33mcommit d303103724d38ee4b4734974986e1f1c9b4dc6ef[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Sun Jul 1 12:16:32 2018 +0200
+
+    Added missing comma to bibtex entries
+
+[33mcommit 431e628fd9e1f39d84636af4680d776deee275f2[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Sun Jun 24 12:38:51 2018 +0200
+
+    Note on absolute path to tensorflow model
+
+[33mcommit 6989c1d955e10592996dfdb3d681880d1af43b2c[m
+Author: abewley <alex.bewley@gmail.com>
+Date:   Sun Jun 24 11:09:47 2018 +0100
+
+    Updated citation. (#83)
+
+[33mcommit 313a765c0664fb84bb3fadfefa2957246cc0d66f[m
+Author: linuxandchill <linuxandchill@users.noreply.github.com>
+Date:   Mon Jun 4 06:30:57 2018 -0700
+
+    type sklean -> sklearn (#77)
+
+[33mcommit d339f75b22c5b2ab061c9cc1ea546c448cdfb9f6[m
+Author: Nicolai Wojke <nwojke@users.noreply.github.com>
+Date:   Tue Apr 17 10:51:30 2018 +0200
+
+    Added paper DOI to README
+
+[33mcommit 96f88abf6c80574efbc8fec8c92ba532294ef440[m
+Author: abewley <alex.bewley@gmail.com>
+Date:   Mon Feb 12 05:28:45 2018 +0000
+
+    Update README.md (#46)
+    
+    linked training repo
+
+[33mcommit 9eca8f448cb42aa654829312769c9b00c99b248f[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Sun Feb 11 20:06:00 2018 +0100
+
+    Generate detections from frozen inference graph
+
+[33mcommit 1bcf78f3b8635a5d8d9e1f9c0940c8566e927dec[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Fri Jan 5 00:44:38 2018 +0100
+
+    More consistent bibtex entry
+
+[33mcommit 03dfcfb2635b58b435576093708a29fa98257077[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Fri Jan 5 00:43:44 2018 +0100
+
+    Updated bibtex entry
+
+[33mcommit 9410b931dae391c44c28d599e7d2e36eb1197d58[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Wed Aug 16 22:15:42 2017 +0200
+
+    Removed unused variable
+
+[33mcommit b0ddebfc7a405d1a26d8e73ec0dc20acf77aa99d[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Wed Aug 16 22:11:26 2017 +0200
+
+    Fix: unmatched tracks before iou assignment (#17)
+
+[33mcommit b5aff4fb90637870368ebde67e28d63ad9ee23b5[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Wed Jul 26 13:07:28 2017 +0200
+
+    Fixed tlbr track state bounding box representation
+
+[33mcommit 6f5e05e938157e2f885f2bca3889ec3ca8998b20[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Mon Jul 24 12:31:49 2017 +0200
+
+    Force floating point types in detection
+
+[33mcommit 4c11bc1a944dbafaa4bf8ac670cfb7e5890bcf08[m
+Merge: b7b505c 28b3d81
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Fri Jul 21 20:36:23 2017 +0200
+
+    Merge branch 'master' of https://github.com/nwojke/deep_sort
+
+[33mcommit b7b505c8c6437cd5d0986410fcb0a27dfd210a3f[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Fri Jul 21 20:36:06 2017 +0200
+
+    Note on missing max pooling padding
+
+[33mcommit 28b3d817f5aaefb5e4466a2f750a09e37fff0781[m
+Merge: b458273 8a51f08
+Author: Nicolai Wojke <nwojke@users.noreply.github.com>
+Date:   Wed Jul 19 23:41:16 2017 +0200
+
+    Merge pull request #14 from nwojke/abewley-patch-1
+    
+    Added citation info
+
+[33mcommit 8a51f08a64ab7c4e74f35d93472cffaddb586397[m
+Author: abewley <alex.bewley@gmail.com>
+Date:   Wed Jul 19 22:39:05 2017 +0100
+
+    Update README.md
+    
+    Added citation info
+
+[33mcommit b458273779d6821be64e23b6db33333e5931a02d[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Wed Jul 19 12:36:39 2017 +0200
+
+    Pickle-able NearestNeigborDistanceMetric
+
+[33mcommit c1dfda9a6d11b83ef58bc099f3ee7cf66e585016[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Thu Mar 23 09:05:36 2017 +0100
+
+    README update
+
+[33mcommit 27f5db06b71378202f1581a52150a07ab6f1fb7e[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Tue Mar 21 22:01:31 2017 +0100
+
+    README formatting
+
+[33mcommit b724aea5752e910025f87f7c9198972f04043b0b[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Tue Mar 21 22:00:05 2017 +0100
+
+    Note on detections
+
+[33mcommit b6c8a39cedefba5ba1edd89a6cfe5901516ff7e1[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Tue Mar 21 21:09:05 2017 +0100
+
+    Typo fix
+
+[33mcommit 00a3a5f9b3bb1b3d3f98ed9bf0c47047783cf286[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Tue Mar 21 21:08:12 2017 +0100
+
+    Conversion to TensorFlow 1.0
+
+[33mcommit 284f59a8d044c9c835f08f8aa3d0c39e1de5b579[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Tue Mar 21 21:07:49 2017 +0100
+
+    Python 2 compability (thanks to Balint Fabry)
+
+[33mcommit dfb238a9eedbf91f2bf8a6c1a9919bafee04bd27[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Wed Feb 15 09:16:07 2017 +0100
+
+    Fixed command in example (README)
+
+[33mcommit e6d1a98dd71338dd2c74868066704d10453e6f11[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Wed Feb 15 09:13:12 2017 +0100
+
+    Some more README fixes
+
+[33mcommit deffd31290f9fd926a63d0c89a360c9959741958[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Tue Feb 14 13:21:47 2017 +0100
+
+    Docstring type fix
+
+[33mcommit 56f7c9712808bacc3f6512da56ea0895639854f5[m
+Author: Nicolai Wojke <nwojke@uni-koblenz.de>
+Date:   Tue Feb 14 13:17:05 2017 +0100
+
+    Initial commit
+
+[33mcommit 832083403cb6a5f1c0665e579664cf6a617ea8d8[m
+Author: Nicolai Wojke <nwojke@users.noreply.github.com>
+Date:   Sat Feb 4 14:17:43 2017 +0100
+
+    Initial commit

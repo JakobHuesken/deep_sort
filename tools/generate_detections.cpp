@@ -176,10 +176,11 @@ std::function<std::vector<float>(const cv::Mat &, const std::vector<cv::Rect> &)
 }
 
 void generate_detections(std::function<std::vector<float>(const cv::Mat &, const std::vector<cv::Rect> &)> encoder, const std::string &mot_dir, const std::string &output_dir, const std::string &detection_dir = "") {
+    //check if detection dir exists, otherwise use the mot dir
     if (detection_dir.empty()) {
         detection_dir = mot_dir;
     }
-
+    //create the output dir
     if (mkdir(output_dir.c_str(), 0755) != 0) {
         if (errno != EEXIST) {
             cerr << "Failed to create output directory '" << output_dir << "'" << endl;
@@ -187,13 +188,13 @@ void generate_detections(std::function<std::vector<float>(const cv::Mat &, const
         }
     }
 
-    for (const string &sequence : fs::directory_iterator(mot_dir)) {
+    for (const string &sequence : fs::directory_iterator(mot_dir)) { //iterate through the directories
         cout << "Processing " << sequence << endl;
         const string sequence_dir = mot_dir + "/" + sequence;
         const string image_dir = sequence_dir + "/img1";
 
         std::unordered_map<int, string> image_filenames;
-        for (const string &filename : fs::directory_iterator(image_dir)) {
+        for (const string &filename : fs::directory_iterator(image_dir)) { //iterate through the images
             int frame_number = std::stoi(filename.substr(0, filename.find('.')));
             image_filenames[frame_number] = image_dir + "/" + filename;
         }
