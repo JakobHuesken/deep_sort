@@ -91,7 +91,7 @@ class Visualization(object):
         aspect_ratio = float(image_shape[1]) / image_shape[0]
         image_shape = 1024, int(aspect_ratio * 1024)
         self.viewer = ImageViewer(
-            update_ms, image_shape, "Figure %s" % seq_info["sequence_name"])
+            update_ms, image_shape, "Figure %s" % "Hello"
         self.viewer.thickness = 2
         self.frame_idx = seq_info["min_frame_idx"]
         self.last_idx = seq_info["max_frame_idx"]
