@@ -1,54 +1,61 @@
 from confluent_kafka import Consumer, KafkaException
 import json
 
-class KafkaConsumer:
-    def __init__(self, broker, group_id):
-        self.broker = broker
-        self.group_id = group_id
-        self.consumer = None
-    
-    def start_consumer(self.topic):
-        self.topic = topic
-        conf = {
-            'bootstrap.servers': self.broker,
-            'group.id': self.group_id,
+class KafkaConsumerWrapper:
+    def __init__(self, broker, group_id, topic):
+        self.conf = {
+            'bootstrap.servers': broker,
+            'group.id': group_id,
             'auto.offset.reset': 'earliest'
         }
+        self.consumer = Consumer(self.conf)
+        self.consumer.subscribe([topic])
 
-        self.consumer = Consumer(conf)
-        self.consumer.subscribe([self.topic])
-
-    def update(batchSize):
+    def update(self):
         
-        parsed_detections = []
-        for frame in batchSize:
-            msg = self.consumer.poll(1.0)
+        msg = self.consumer.poll(0.1)
 
-            if msg is None:
-                return 0
-            if msg.error():
-                if msg.error().code() == KafkaException._PARTITION_EOF:
-                    sys.stderr.write('%% %s [%d] reached end at offset %d\n' %
-                                        (msg.topic(), msg.partition(), msg.offset()))
-                else:
-                    sys.stderr.write('Consumer error: %s\n' % msg.error())
-                return 0
+        if msg is None:
+            return None
+        try:
+            unprocessed_message = json.loads(msg.value().decode('utf-8'))
+        except ValueError as e:
+            print(e)
+            return None
 
-            value = msg.value().decode('utf-8')
-            json_data = json.loads(value)
-            for detection in json_data:
-                parsed_detections.append({
-                    "frame_id": detection["f"],
-                    "detection_class": detection["c"],
-                    "bbox_x": detection["bX"],
-                    "bbox_y": detection["bY"],
-                    "bbox_w": detection["bW"],
-                    "bbox_h": detection["bH"],
-                    "probability": detection["p"],
-                    "global_x": detection["gX"],
-                    "global_y": detection["gY"],
-                    "global_z": detection["gZ"],
-                    "features": detection["features"]
-                })
-        
-        return parsed_detections
+        processed_message = self.process_message(unprocessed_message)
+        return processed_message
+
+    def process_message(self, json_data):
+
+        print("Received JSON data:", json_data)
+        return 0
+
+    def close(self):
+        self.consumer.close()
+
+class KafkaDetectionConsumer(KafkaConsumerWrapper):
+    def process_message(self, json_data):
+        # The detections are not yet in a format supported by deep_sort
+        # This function returns them to the right data types and format
+
+        for key, value in json_data.items():
+            if isinstance(value, str):
+                # Convert string representation of integer to integer
+                if value.isdigit():
+                    json_data[key] = int(value)
+            elif isinstance(value, list):
+                # Iterate over each dictionary in the list
+                for item in value:
+                    # Convert values to integers, except for 'probability' key
+                    for k, v in item.items():
+                        if isinstance(v, str):
+                            if v.isdigit():
+                                item[k] = int(v)
+                            elif k == 'probability':
+                                item[k] = float(v)
+                        elif isinstance(v, list):
+                            item[k] = [int(x) if isinstance(x, str) and x.isdigit() else x for x in v]
+
+        # print(json_data)
+        return json_data

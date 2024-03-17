@@ -2,6 +2,7 @@
 """
 This module contains an image viewer and drawing routines based on OpenCV.
 """
+import threading
 import numpy as np
 import cv2
 import time
@@ -98,18 +99,22 @@ class ImageViewer(object):
 
     """
 
-    def __init__(self, update_ms, window_shape=(640, 480), caption="Figure 1"):
+    def __init__(self, update_ms, window_shape=(1920, 1080), caption="Figure 1"):
         self._window_shape = window_shape
         self._caption = caption
         self._update_ms = update_ms
         self._video_writer = None
-        self._user_fun = lambda: None
+        self._user_fun = lambda: np.zeros(self._window_shape + (3, ), dtype=np.uint8)
         self._terminate = False
 
         self.image = np.zeros(self._window_shape + (3, ), dtype=np.uint8)
         self._color = (0, 0, 0)
         self.text_color = (255, 255, 255)
         self.thickness = 1
+
+        self._viewer_thread = threading.Thread(target=self._run)
+        self._viewer_thread.daemon = True
+        self._viewer_thread.start()
 
     @property
     def color(self):
@@ -282,64 +287,35 @@ class ImageViewer(object):
         """
         self._video_writer = None
 
-    def run(self, update_fun=None):
-        """Start the image viewer.
+    def _run(self):
+        cv2.namedWindow(self._caption)
 
-        This method blocks until the user requests to close the window.
-
-        Parameters
-        ----------
-        update_fun : Optional[Callable[] -> None]
-            An optional callable that is invoked at each frame. May be used
-            to play an animation/a video sequence.
-
-        """
-        if update_fun is not None:
-            self._user_fun = update_fun
-
-        self._terminate, is_paused = False, False
-        # print("ImageViewer is paused, press space to start.")
         while not self._terminate:
-            t0 = time.time()
-            if not is_paused:
-                self._terminate = not self._user_fun()
-                if self._video_writer is not None:
-                    self._video_writer.write(
-                        cv2.resize(self.image, self._window_shape))
-            t1 = time.time()
-            remaining_time = max(1, int(self._update_ms - 1e3*(t1-t0)))
-            cv2.imshow(
-                self._caption, cv2.resize(self.image, self._window_shape[:2]))
-            key = cv2.waitKey(remaining_time)
-            if key & 255 == 27:  # ESC
-                print("terminating")
-                self._terminate = True
-            elif key & 255 == 32:  # ' '
-                print("toggeling pause: " + str(not is_paused))
-                is_paused = not is_paused
-            elif key & 255 == 115:  # 's'
-                print("stepping")
-                self._terminate = not self._user_fun()
-                is_paused = True
+            if self._user_fun is not None:
+                self.image = self._user_fun()
 
-        # Due to a bug in OpenCV we must call imshow after destroying the
-        # window. This will make the window appear again as soon as waitKey
-        # is called.
-        #
-        # see https://github.com/Itseez/opencv/issues/4535
-        self.image[:] = 0
-        cv2.destroyWindow(self._caption)
-        cv2.waitKey(1)
-        cv2.imshow(self._caption, self.image)
+            cv2.imshow(self._caption, cv2.resize(self.image, self._window_shape[:2]))
+
+            key = cv2.waitKey(1) & 0xFF
+            if key == 27:  # ESC
+                print("terminating")
+                self.close()
+
+            time.sleep(self._update_ms / 1000.0)
+
+        cv2.destroyAllWindows()
+
+    def close(self):
+        self._terminate = True
 
     def stop(self):
-        """Stop the control loop.
+        self.close()
 
-        After calling this method, the viewer will stop execution before the
-        next frame and hand over control flow to the user.
+    def update_function(self, new_fun):
+        self._user_fun = new_fun
+        if self._viewer_thread.is_alive():
+            print("Viewer thread is still running.")
+        else:
+            print("Viewer thread has finished.")
 
-        Parameters
-        ----------
 
-        """
-        self._terminate = True

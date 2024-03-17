@@ -2,6 +2,7 @@
 import numpy as np
 import colorsys
 from .image_viewer import ImageViewer
+from time import sleep
 
 
 def create_unique_color_float(tag, hue_step=0.41):
@@ -89,19 +90,24 @@ class Visualization(object):
     def __init__(self, seq_info, update_ms):
         image_shape = seq_info["image_size"][::-1]
         aspect_ratio = float(image_shape[1]) / image_shape[0]
-        image_shape = 1024, int(aspect_ratio * 1024)
+        image_shape = 1920, 1080
         self.viewer = ImageViewer(
-            update_ms, image_shape, "Figure %s" % "Hello"
+            update_ms, image_shape, "Figure 1")
         self.viewer.thickness = 2
         self.frame_idx = seq_info["min_frame_idx"]
         self.last_idx = seq_info["max_frame_idx"]
+        
 
-    def run(self, frame_callback):
-        self.viewer.run(lambda: self._update_fun(frame_callback))
+    def run(self, frame_callback, seq_info):
+        self.frame_idx = seq_info["min_frame_idx"]
+        self.last_idx = seq_info["max_frame_idx"]
+        self.viewer.update_function(lambda: self._update_fun(frame_callback))
 
     def _update_fun(self, frame_callback):
+        print("Checking for frame:", self.frame_idx)
         if self.frame_idx > self.last_idx:
-            return False  # Terminate
+            print("Frame", self.frame_idx, "not found, waiting for more.")
+            return False  # No more Frames to work with
         frame_callback(self, self.frame_idx)
         self.frame_idx += 1
         return True
@@ -128,7 +134,7 @@ class Visualization(object):
                 continue
             self.viewer.color = create_unique_color_uchar(track.track_id)
             self.viewer.rectangle(
-                *track.to_tlwh().astype(np.int), label=str(track.track_id))
+                *track.to_tlwh().astype(np.int64), label=str(track.track_id))
             # self.viewer.gaussian(track.mean[:2], track.covariance[:2, :2],
             #                      label="%d" % track.track_id)
 #

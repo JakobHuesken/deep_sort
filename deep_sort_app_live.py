@@ -6,16 +6,19 @@ import os
 
 import cv2
 import numpy as np
+import json
+from collections import defaultdict
 
 from application_util import preprocessing
 from application_util import visualization
-from application_util import kafkaConsumer
+from application_util.kafka_consumer import KafkaDetectionConsumer
 from deep_sort import nn_matching
 from deep_sort.detection import Detection
 from deep_sort.tracker import Tracker
+from deep_sort.multicam_matching import synchronize_frames, filter_out_detections, group_detections, transform_coordinates
 
 
-def gather_sequence_info(batchDetections, batchSize): # We gather infos about batches
+def gather_sequence_info(batchFrames, batch_size): # We gather infos about the frame
     """Gather sequence information, such as image filenames, detections,
     groundtruth (if available).
 
@@ -42,18 +45,19 @@ def gather_sequence_info(batchDetections, batchSize): # We gather infos about ba
     
  
     seq_info = {
-        "detections": batchDetections,
+        "detections": batchFrames,
         "groundtruth": None,
         "image_size": [1920, 1080, 3],
-        "min_frame_idx": 1,
-        "max_frame_idx": batchSize,
+        "min_frame_idx": batchFrames[0].get('frame_id', 1),
+        "max_frame_idx": batchFrames[-1].get('frame_id', 1),
         "feature_dim": 128,
         "update_ms": 5
     }
+    print(seq_info["min_frame_idx"])
     return seq_info
 
 
-def create_detections(detection_dic, frame_idx, min_height=0):
+def create_detections(detection_list, frame_idx, min_height=0):
     """Create detections for given frame index from the raw detection matrix.
 
     Parameters
@@ -74,21 +78,34 @@ def create_detections(detection_dic, frame_idx, min_height=0):
         Returns detection responses at given frame index.
 
     """
-    detection_list = [
-    Detection(
-        [d['bbox_x'], d['bbox_y'], d['bbox_w'], d['bbox_h']],
-        d['probability'],
-        d['features']
-    )
-    for d in detection_dic 
-    if d.get('frame_id') == frame_idx and d['bbox_h'] >= min_height
-]
-    return detection_list
+    if detection_list:
+        print("full")
+    else: 
+        print("empty")
+    detection_class_list = []
+    for frame in detection_list:
+        frame_found =  False
+        # Check if the frame_id matches the desired frame_idx
+        if int(frame.get('frame_id', 0)) == frame_idx:
+            frame_found = True
+            for d in frame["detections"]:
+                if int(d.get('bbox_h', 0)) >= min_height:
+                    # print(d)
+                    detection_class_list.append(
+                        Detection(
+                            [d.get('bbox_x', 0), d.get('bbox_y', 0), d.get('bbox_w', 0), d.get('bbox_h', 0)],
+                            float(d.get('probability', 0.0)),
+                            d.get('features', [])
+                        )
+                    )
+        if frame_found:
+            detection_list.remove(frame)
+    return detection_class_list
 
 
 def run(output_file, min_confidence,
         nms_max_overlap, min_detection_height, max_cosine_distance,
-        nn_budget, display):
+        nn_budget, display, batch_size):
     """Run multi-target tracker on a particular sequence.
 
     Parameters
@@ -115,9 +132,10 @@ def run(output_file, min_confidence,
     """
     
     # Kafka
-    kafka_consumer = KafkaConsumer('brokerip', '1') # broker ip, partition
-    kafka_consumer.start_consumer('featureDetections') # topic
-
+    broker = "localhost:9092"
+    group_id = "1"
+    topic = "timed-images"
+    kafka_consumer = KafkaDetectionConsumer(broker, group_id, topic) 
 
     metric = nn_matching.NearestNeighborDistanceMetric(
         "cosine", max_cosine_distance, nn_budget)
@@ -145,7 +163,7 @@ def run(output_file, min_confidence,
 
         # Update visualization.
         if display:
-            image = np.zeros((1080, 1920, 3), dtype=np.uint8)
+            image = np.zeros((1920, 1080, 3), dtype=np.uint8)
             vis.set_image(image.copy())
             vis.draw_detections(detections)
             vis.draw_trackers(tracker.tracks)
@@ -157,25 +175,58 @@ def run(output_file, min_confidence,
             bbox = track.to_tlwh()
             results.append([
                 frame_idx, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
-
     # Run tracker until key interupt.
-    batchSize = 4
-    batchDetections = []
+    batchFrames = []
+    last_frame_number = None
+    is_initialized = False
     try:
         while True: 
-            # Get 'batch_size' number of messages (frames) from kafka
-            batchDetections = kafka_consumer.update(batchSize)
-
-            seq_info = gather_sequence_info(batchDetections, batchSize)
-            if display:
-                visualizer = visualization.Visualization(seq_info, update_ms=5)
-            else:
-                visualizer = visualization.NoVisualization(seq_info)
-            visualizer.run(frame_callback)
+            # Get 'batch_size' number of messages (frames) from kafka; each message is one frame with a number of detections 
+            # needs to be large enough to ensure all cameras had time to publish
+            for _ in range(batch_size):
+                frame = kafka_consumer.update()
+                # print(f"Received frame: {frame}")
+                if isinstance(frame, dict):
+                    batchFrames.append(frame)
+            if batchFrames:
+                # Start by synchronizing the frames from different cams
+                print("unsynchronized V")
+                print(batchFrames)
+                print("unsynchronized A")
+                # synchronize the frames
+                batchFrames, last_frame_number = synchronize_frames(batchFrames, last_frame_number, 30)
+                print("synchronized V")
+                print(batchFrames)
+                print("synchronized A")
+                
+                # Now transform the coordinates into global coordinates
+                # transform_coordinates()
+                
+                print("grouped V")
+                batchFrames = group_detections(batchFrames)
+                print(batchFrames)
+                print("grouped A")
+                # Lastly filter out the same detection comming from different cams
+                print("filtered V")
+                batchFrames = filter_out_detections(batchFrames)
+                print(batchFrames)
+                print("filtered A")
+                seq_info = gather_sequence_info(batchFrames, batch_size)
+                if display:
+                    if not is_initialized:
+                        # Only initialize the visualizer once
+                        visualizer = visualization.Visualization(seq_info, update_ms=5)
+                        is_initialized = True
+                else:
+                    visualizer = visualization.NoVisualization(seq_info)
+                visualizer.run(frame_callback, seq_info)
+                # batchFrames.clear()
+            else: 
+                print("No frames gathered")
     except KeyboardInterrupt:
         print('stopped')
     finally:
-        consumer.close()
+        kafka_consumer.close()
     # Store results.
     f = open(output_file, 'w')
     for row in results:
@@ -206,6 +257,10 @@ def parse_args():
         "box height. Detections with height smaller than this value are "
         "disregarded", default=0, type=int)
     parser.add_argument(
+        "--min_detection_height", help="Threshold on the detection bounding "
+        "box height. Detections with height smaller than this value are "
+        "disregarded", default=0, type=int)
+    parser.add_argument(
         "--nms_max_overlap",  help="Non-maxima suppression threshold: Maximum "
         "detection overlap.", default=1.0, type=float)
     parser.add_argument(
@@ -217,12 +272,14 @@ def parse_args():
     parser.add_argument(
         "--display", help="Show intermediate tracking results",
         default=True, type=bool_string)
+    parser.add_argument(
+        "--batch_size", help="Run the tracker on batch_size increments of frames, effect of different values are not yet discovered",
+        type=int, default=100)
     return parser.parse_args()
-
 
 if __name__ == "__main__":
     args = parse_args()
     run(
-        args.sequence_dir, args.detection_file, args.output_file,
+        args.output_file,
         args.min_confidence, args.nms_max_overlap, args.min_detection_height,
-        args.max_cosine_distance, args.nn_budget, args.display, conf)
+        args.max_cosine_distance, args.nn_budget, args.display, args.batch_size)
