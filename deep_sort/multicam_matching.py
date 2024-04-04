@@ -43,8 +43,29 @@ def synchronize_frames(batchFrames, last_frame_number=None, time_threshold=30): 
     return sorted_frames, frame_id
 
 
-def transform_coordinates():
-    return 0
+def transform_coordinates(frames, homography_dir):
+    for frame in frames:
+        cam_id = frame["cam_id"]
+        homography_file = f"{homography_dir}/homography_{cam_id}.npy"
+        invHmat = np.load(homography_file)
+
+        for detection in frame["detections"]:
+            bbox_x, bbox_y, bbox_w, bbox_h = detection["bbox_x"], detection["bbox_y"], detection["bbox_w"], detection["bbox_h"]
+            bbox_points = np.array([[bbox_x, bbox_y, 1], 
+                                    [bbox_x + bbox_w, bbox_y, 1], 
+                                    [bbox_x, bbox_y + bbox_h, 1], 
+                                    [bbox_x + bbox_w, bbox_y + bbox_h, 1]])
+
+            transformed_bbox = np.dot(invHmat, bbox_points.T).T
+            transformed_bbox[:, 0] /= transformed_bbox[:, 2]
+            transformed_bbox[:, 1] /= transformed_bbox[:, 2]
+
+            detection["bbox_x"] = transformed_bbox[0, 0]
+            detection["bbox_y"] = transformed_bbox[0, 1]
+            detection["bbox_w"] = transformed_bbox[1, 0] - transformed_bbox[0, 0]
+            detection["bbox_h"] = transformed_bbox[2, 1] - transformed_bbox[0, 1]
+
+    return frames
 
 def group_detections(frames):
     grouped_detections = []  # List to hold grouped detections by frame ID
