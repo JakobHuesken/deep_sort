@@ -1,10 +1,12 @@
 # vim: expandtab:ts=4:sw=4
+import tensorflow.compat.v1 as tf
 import os
 import errno
 import argparse
 import numpy as np
 import cv2
-import tensorflow as tf
+
+
 
 
 def _run_in_batches(f, data_dict, out, batch_size):
@@ -55,7 +57,7 @@ def extract_image_patch(image, bbox, patch_shape):
 
     # convert to top left, bottom right
     bbox[2:] += bbox[:2]
-    bbox = bbox.astype(np.int)
+    bbox = bbox.astype(np.int64)
 
     # clip at image boundaries
     bbox[:2] = np.maximum(0, bbox[:2])
@@ -78,9 +80,9 @@ class ImageEncoder(object):
             graph_def.ParseFromString(file_handle.read())
         tf.import_graph_def(graph_def, name="net")
         self.input_var = tf.get_default_graph().get_tensor_by_name(
-            "net/%s:0" % input_name)
+            "%s:0" % input_name)
         self.output_var = tf.get_default_graph().get_tensor_by_name(
-            "net/%s:0" % output_name)
+            "%s:0" % output_name)
 
         assert len(self.output_var.get_shape()) == 2
         assert len(self.input_var.get_shape()) == 4
@@ -97,7 +99,7 @@ class ImageEncoder(object):
 
 def create_box_encoder(model_filename, input_name="images",
                        output_name="features", batch_size=32):
-    image_encoder = ImageEncoder(model_filename, input_name, output_name)           #init image_encoder
+    image_encoder = ImageEncoder(model_filename, input_name, output_name)
     image_shape = image_encoder.image_shape
 
     def encoder(image, boxes):
@@ -110,7 +112,7 @@ def create_box_encoder(model_filename, input_name="images",
                     0., 255., image_shape).astype(np.uint8)
             image_patches.append(patch)
         image_patches = np.asarray(image_patches)
-        return image_encoder(image_patches, batch_size)                            #call image_encoder
+        return image_encoder(image_patches, batch_size)
 
     return encoder
 
@@ -134,16 +136,16 @@ def generate_detections(encoder, mot_dir, output_dir, detection_dir=None):
         standard MOTChallenge detections.
 
     """
-                                                                                                                                            if detection_dir is None:
-                                                                                                                                                detection_dir = mot_dir
-                                                                                                                                            try:
-                                                                                                                                                os.makedirs(output_dir)
-                                                                                                                                            except OSError as exception:
-                                                                                                                                                if exception.errno == errno.EEXIST and os.path.isdir(output_dir):
-                                                                                                                                                    pass
-                                                                                                                                                else:
-                                                                                                                                                    raise ValueError(
-                                                                                                                                                        "Failed to created output directory '%s'" % output_dir)
+    if detection_dir is None:
+        detection_dir = mot_dir
+    try:
+        os.makedirs(output_dir)
+    except OSError as exception:
+        if exception.errno == errno.EEXIST and os.path.isdir(output_dir):
+            pass
+        else:
+            raise ValueError(
+                "Failed to created output directory '%s'" % output_dir)
 
     for sequence in os.listdir(mot_dir):
         print("Processing %s" % sequence)
@@ -159,9 +161,9 @@ def generate_detections(encoder, mot_dir, output_dir, detection_dir=None):
         detections_in = np.loadtxt(detection_file, delimiter=',')
         detections_out = []
 
-                                                                                                                                            frame_indices = detections_in[:, 0].astype(np.int)
-                                                                                                                                            min_frame_idx = frame_indices.astype(np.int).min()
-                                                                                                                                            max_frame_idx = frame_indices.astype(np.int).max()
+        frame_indices = detections_in[:, 0].astype(np.int64)
+        min_frame_idx = frame_indices.astype(np.int64).min()
+        max_frame_idx = frame_indices.astype(np.int64).max()
         for frame_idx in range(min_frame_idx, max_frame_idx + 1):
             print("Frame %05d/%05d" % (frame_idx, max_frame_idx))
             mask = frame_indices == frame_idx
@@ -181,33 +183,33 @@ def generate_detections(encoder, mot_dir, output_dir, detection_dir=None):
             output_filename, np.asarray(detections_out), allow_pickle=False)
 
 
-                                                                                                                                                            def parse_args():
-                                                                                                                                                                """Parse command line arguments.
-                                                                                                                                                                """
-                                                                                                                                                                parser = argparse.ArgumentParser(description="Re-ID feature extractor")
-                                                                                                                                                                parser.add_argument(
-                                                                                                                                                                    "--model",
-                                                                                                                                                                    default="resources/networks/mars-small128.pb",
-                                                                                                                                                                    help="Path to freezed inference graph protobuf.")
-                                                                                                                                                                parser.add_argument(
-                                                                                                                                                                    "--mot_dir", help="Path to MOTChallenge directory (train or test)",
-                                                                                                                                                                    required=True)
-                                                                                                                                                                parser.add_argument(
-                                                                                                                                                                    "--detection_dir", help="Path to custom detections. Defaults to "
-                                                                                                                                                                    "standard MOT detections Directory structure should be the default "
-                                                                                                                                                                    "MOTChallenge structure: [sequence]/det/det.txt", default=None)
-                                                                                                                                                                parser.add_argument(
-                                                                                                                                                                    "--output_dir", help="Output directory. Will be created if it does not"
-                                                                                                                                                                    " exist.", default="detections")
-                                                                                                                                                                return parser.parse_args()
+def parse_args():
+    """Parse command line arguments.
+    """
+    parser = argparse.ArgumentParser(description="Re-ID feature extractor")
+    parser.add_argument(
+        "--model",
+        default="resources/networks/mars-small128.pb",
+        help="Path to freezed inference graph protobuf.")
+    parser.add_argument(
+        "--mot_dir", help="Path to MOTChallenge directory (train or test)",
+        required=True)
+    parser.add_argument(
+        "--detection_dir", help="Path to custom detections. Defaults to "
+        "standard MOT detections Directory structure should be the default "
+        "MOTChallenge structure: [sequence]/det/det.txt", default=None)
+    parser.add_argument(
+        "--output_dir", help="Output directory. Will be created if it does not"
+        " exist.", default="detections")
+    return parser.parse_args()
 
 
-                                                                                                                                                                def main():
-                                                                                                                                                                    args = parse_args()
-                                                                                                                                                                    encoder = create_box_encoder(args.model, batch_size=32)
-                                                                                                                                                                    generate_detections(encoder, args.mot_dir, args.output_dir,
-                                                                                                                                                                                        args.detection_dir)
+def main():
+    args = parse_args()
+    encoder = create_box_encoder(args.model, batch_size=32)
+    generate_detections(encoder, args.mot_dir, args.output_dir,
+                        args.detection_dir)
 
 
-                                                                                                                                                                if __name__ == "__main__":
-                                                                                                                                                                    main()
+if __name__ == "__main__":
+    main()
