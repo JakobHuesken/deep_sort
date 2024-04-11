@@ -89,3 +89,5 @@ ENV/
 .ropeproject
 
 ./MOT16/*
+./resources/detections
+./resources/calibration
