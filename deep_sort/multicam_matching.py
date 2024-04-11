@@ -1,6 +1,7 @@
 import numpy as np
 from deep_sort.nn_matching import NearestNeighborDistanceMetric
 import copy
+import cv2
 
 def _nn_euclidean_distance(x, y):
     x, y = np.atleast_2d(x), np.atleast_2d(y)  # Ensure x and y are 2D arrays
@@ -43,29 +44,55 @@ def synchronize_frames(batchFrames, last_frame_number=None, time_threshold=30): 
     return sorted_frames, frame_id
 
 
+def apply_homography(H, x, y):
+    """Applies a homography transformation to point (x, y)."""
+    denominator = H[2, 0] * x + H[2, 1] * y + H[2, 2]
+    x_prime = (H[0, 0] * x + H[0, 1] * y + H[0, 2]) / denominator
+    y_prime = (H[1, 0] * x + H[1, 1] * y + H[1, 2]) / denominator
+    return x_prime, y_prime
+
 def transform_coordinates(frames, homography_dir):
+    transformed_frames = []
+
     for frame in frames:
         cam_id = frame["cam_id"]
-        homography_file = f"{homography_dir}/homography_{cam_id}.npy"
+        frame_id = frame["frame_id"]
+        homography_file = f"{homography_dir}/calibration_matrix_{int(cam_id)}.npy"
         invHmat = np.load(homography_file)
-
+        transformed_detections = []
         for detection in frame["detections"]:
             bbox_x, bbox_y, bbox_w, bbox_h = detection["bbox_x"], detection["bbox_y"], detection["bbox_w"], detection["bbox_h"]
-            bbox_points = np.array([[bbox_x, bbox_y, 1], 
-                                    [bbox_x + bbox_w, bbox_y, 1], 
-                                    [bbox_x, bbox_y + bbox_h, 1], 
-                                    [bbox_x + bbox_w, bbox_y + bbox_h, 1]])
+            # Define the four corners of the bounding box
+            corners = [
+                [bbox_x, bbox_y],
+                [bbox_x + bbox_w, bbox_y],
+                [bbox_x + bbox_w, bbox_y + bbox_h],
+                [bbox_x, bbox_y + bbox_h]
+            ]
+            
+            transformed_corners = []
+            for corner in corners:
+                transformed_corner = apply_homography(invHmat, corner[0], corner[1])
+                transformed_corners.append(transformed_corner)
+            
+            transformed_corners = np.array(transformed_corners)
+            
+            transformed_detections.append({
+                "bbox_x": transformed_corners[:,0].min(),
+                "bbox_y": transformed_corners[:,1].min(),
+                "bbox_w": transformed_corners[:,0].max() - transformed_corners[:,0].min(),
+                "bbox_h": transformed_corners[:,1].max() - transformed_corners[:,1].min(),
+                "probability": detection["probability"],
+                "features": detection["features"]
+            })
+        
+        transformed_frames.append({
+            "cam_id": cam_id,
+            "frame_id": frame_id,
+            "detections": transformed_detections
+        })
 
-            transformed_bbox = np.dot(invHmat, bbox_points.T).T
-            transformed_bbox[:, 0] /= transformed_bbox[:, 2]
-            transformed_bbox[:, 1] /= transformed_bbox[:, 2]
-
-            detection["bbox_x"] = transformed_bbox[0, 0]
-            detection["bbox_y"] = transformed_bbox[0, 1]
-            detection["bbox_w"] = transformed_bbox[1, 0] - transformed_bbox[0, 0]
-            detection["bbox_h"] = transformed_bbox[2, 1] - transformed_bbox[0, 1]
-
-    return frames
+    return transformed_frames
 
 def group_detections(frames):
     grouped_detections = []  # List to hold grouped detections by frame ID
