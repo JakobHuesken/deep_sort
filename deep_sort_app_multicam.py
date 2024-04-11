@@ -9,12 +9,14 @@ import numpy as np
 
 from application_util import preprocessing
 from application_util import visualization
+from application_util.kafka_consumer import KafkaDetectionConsumer
 from deep_sort import nn_matching
 from deep_sort.detection import Detection
 from deep_sort.tracker import Tracker
+from deep_sort.multicam_matching import synchronize_frames, filter_out_detections, group_detections, transform_coordinates
 
 
-def gather_sequence_info(sequence_dir, detection_file):
+def gather_sequence_info(kafka_consumer, batch_size, calibration_dir):
     """Gather sequence information, such as image filenames, detections,
     groundtruth (if available).
 
@@ -40,56 +42,67 @@ def gather_sequence_info(sequence_dir, detection_file):
         * max_frame_idx: Index of the last frame.
 
     """
-    image_dir = os.path.join(sequence_dir, "img1")
-    image_filenames = {
-        int(os.path.splitext(f)[0]): os.path.join(image_dir, f)
-        for f in os.listdir(image_dir)}
-    groundtruth_file = os.path.join(sequence_dir, "gt/gt.txt")
+    batchFrames = []
+    first_message = True
+    last_frame_number = 0
+    for i in range(batch_size):
+        frame, first_message = kafka_consumer.update(first_message)
+        if frame is None: 
+            continue
+        if isinstance(frame, dict):
+            batchFrames.append(frame)
 
-    detections = None
-    if detection_file is not None:
-        detections = np.load(detection_file)
-    groundtruth = None
-    if os.path.exists(groundtruth_file):
-        groundtruth = np.loadtxt(groundtruth_file, delimiter=',')
+    if batchFrames:
+        # Start by synchronizing the frames from different cams
+        print("unsynchronized V")
+        print(batchFrames)
+        print("unsynchronized A")
+        # synchronize the frames
+        batchFrames, last_frame_number = synchronize_frames(batchFrames, last_frame_number, 30)
+        print("synchronized V")
+        print(batchFrames)
+        print("synchronized A")
+        print("transformed V")
+        # Now transform the coordinates into global coordinates
+        batchFrames = transform_coordinates(batchFrames, calibration_dir)
+        print("transformed A")
+        print("grouped V")
+        batchFrames = group_detections(batchFrames)
+        print(batchFrames)
+        print("grouped A")
+        # # Lastly filter out the same detection comming from different cams
+        print("filtered V")
+        batchFrames = filter_out_detections(batchFrames)
+        print(batchFrames)
+        print("filtered A")
+    else: 
+        print("No frames gathered")
+    # Deconstruct dictionary into numpy array
+    detections_list = []
+    for frame in batchFrames:
+        frame_id = frame["frame_id"]
+        detections = frame["detections"]
 
-    if len(image_filenames) > 0:
-        image = cv2.imread(next(iter(image_filenames.values())),
-                           cv2.IMREAD_GRAYSCALE)
-        image_size = image.shape
-    else:
-        image_size = None
+        for detection in detections:
+            bbox_x = detection["bbox_x"]
+            bbox_y = detection["bbox_y"]
+            bbox_w = detection["bbox_w"]
+            bbox_h = detection["bbox_h"]
+            probability = detection["probability"]
+            features = detection["features"]
+            detection_data = [frame_id, 0, bbox_x, bbox_y, bbox_w, bbox_h, probability, -1, -1, -1] + features
+            detections_list.append(detection_data)
+    detections = np.array(detections_list)   
 
-    if len(image_filenames) > 0:
-        min_frame_idx = min(image_filenames.keys())
-        max_frame_idx = max(image_filenames.keys())
-    else:
-        min_frame_idx = int(detections[:, 0].min())
-        max_frame_idx = int(detections[:, 0].max())
-
-    info_filename = os.path.join(sequence_dir, "seqinfo.ini")
-    if os.path.exists(info_filename):
-        with open(info_filename, "r") as f:
-            line_splits = [l.split('=') for l in f.read().splitlines()[1:]]
-            info_dict = dict(
-                s for s in line_splits if isinstance(s, list) and len(s) == 2)
-
-        update_ms = 1000 / int(info_dict["frameRate"])
-    else:
-        update_ms = None
-
-    feature_dim = detections.shape[1] - 10 if detections is not None else 0
-    print(image_size)
     seq_info = {
-        "sequence_name": os.path.basename(sequence_dir),
-        "image_filenames": image_filenames,
+        "sequence_name": "MultiCamera",
         "detections": detections,
-        "groundtruth": groundtruth,
-        "image_size": image_size,
-        "min_frame_idx": min_frame_idx,
-        "max_frame_idx": max_frame_idx,
-        "feature_dim": feature_dim,
-        "update_ms": update_ms
+        "groundtruth": None,
+        "image_size": [1080,1920],
+        "min_frame_idx": 0,
+        "max_frame_idx": batchFrames[-1]["frame_id"],
+        "feature_dim": 128,
+        "update_ms": 100
     }
     return seq_info
 
@@ -127,9 +140,9 @@ def create_detections(detection_mat, frame_idx, min_height=0):
     return detection_list
 
 
-def run(sequence_dir, detection_file, output_file, min_confidence,
+def run(output_file, min_confidence,
         nms_max_overlap, min_detection_height, max_cosine_distance,
-        nn_budget, display):
+        nn_budget, display, batch_size, calibration_dir):
     """Run multi-target tracker on a particular sequence.
 
     Parameters
@@ -158,12 +171,18 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
         If True, show visualization of intermediate tracking results.
 
     """
-    seq_info = gather_sequence_info(sequence_dir, detection_file)
+    # Kafka
+    broker = "localhost:9092"
+    group_id = "1"
+    topic = "timed-images"
+    kafka_consumer = KafkaDetectionConsumer(broker, group_id, topic) 
+
+    seq_info = gather_sequence_info(kafka_consumer, batch_size, calibration_dir)
     metric = nn_matching.NearestNeighborDistanceMetric(
         "cosine", max_cosine_distance, nn_budget)
     tracker = Tracker(metric)
     results = []
-
+    print("run")
     def frame_callback(vis, frame_idx):
         print("Processing frame %05d" % frame_idx)
 
@@ -185,8 +204,7 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
 
         # Update visualization.
         if display:
-            image = cv2.imread(
-                seq_info["image_filenames"][frame_idx], cv2.IMREAD_COLOR)
+            image = np.zeros((1080, 1920, 3), dtype=np.uint8)
             vis.set_image(image.copy())
             vis.draw_detections(detections)
             vis.draw_trackers(tracker.tracks)
@@ -195,14 +213,13 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
         for track in tracker.tracks:
             if not track.is_confirmed() or track.time_since_update > 1:
                 continue
-            print("test")
             bbox = track.to_tlwh()
             results.append([
                 frame_idx, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
 
     # Run tracker.
     if display:
-        visualizer = visualization.Visualization(seq_info, update_ms=5)
+        visualizer = visualization.Visualization(seq_info, update_ms=100)
     else:
         visualizer = visualization.NoVisualization(seq_info)
     visualizer.run(frame_callback)
@@ -224,12 +241,6 @@ def parse_args():
     """ Parse command line arguments.
     """
     parser = argparse.ArgumentParser(description="Deep SORT")
-    parser.add_argument(
-        "--sequence_dir", help="Path to MOTChallenge sequence directory",
-        default=None, required=True)
-    parser.add_argument(
-        "--detection_file", help="Path to custom detections.", default=None,
-        required=True)
     parser.add_argument(
         "--output_file", help="Path to the tracking output file. This file will"
         " contain the tracking results on completion.",
@@ -254,12 +265,18 @@ def parse_args():
     parser.add_argument(
         "--display", help="Show intermediate tracking results",
         default=True, type=bool_string)
+    parser.add_argument(
+        "--batch_size", help="Run the tracker on batch_size increments of frames, effect of different values are not yet discovered",
+        type=int, default=100)
+    parser.add_argument(
+        "--calibration_dir", help="Path to the calibration dir.",
+        default="resources/calibration")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
     run(
-        args.sequence_dir, args.detection_file, args.output_file,
+        args.output_file,
         args.min_confidence, args.nms_max_overlap, args.min_detection_height,
-        args.max_cosine_distance, args.nn_budget, args.display)
+        args.max_cosine_distance, args.nn_budget, args.display, args.batch_size, args.calibration_dir)

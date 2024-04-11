@@ -10,7 +10,7 @@ import json
 from collections import defaultdict
 
 from application_util import preprocessing
-from application_util import visualization
+from application_util import live_visualization
 from application_util.kafka_consumer import KafkaDetectionConsumer
 from deep_sort import nn_matching
 from deep_sort.detection import Detection
@@ -42,22 +42,38 @@ def gather_sequence_info(batchFrames, batch_size): # We gather infos about the f
         * max_frame_idx: Index of the last frame.
 
     """
-    
+    # Deconstruct dictionary into numpy array
+    detections_list = []
+    for frame in batchFrames:
+        frame_id = frame["frame_id"]
+        detections = frame["detections"]
+
+        for detection in detections:
+            bbox_x = detection["bbox_x"]
+            bbox_y = detection["bbox_y"]
+            bbox_w = detection["bbox_w"]
+            bbox_h = detection["bbox_h"]
+            probability = detection["probability"]
+            features = detection["features"]
+            detection_data = [frame_id, 0, bbox_x, bbox_y, bbox_w, bbox_h, probability, -1, -1, -1] + features
+            detections_list.append(detection_data)
+    detections = np.array(detections_list)        
+
  
     seq_info = {
-        "detections": batchFrames,
+        "detections": detections,
         "groundtruth": None,
-        "image_size": [1920, 1080, 3],
+        "image_size": [1024, 576, 3],
         "min_frame_idx": batchFrames[0].get('frame_id', 1),
         "max_frame_idx": batchFrames[-1].get('frame_id', 1),
         "feature_dim": 128,
-        "update_ms": 5
+        "update_ms": 33.333
     }
     print(seq_info["min_frame_idx"])
     return seq_info
 
 
-def create_detections(detection_list, frame_idx, min_height=0):
+def create_detections(detection_mat, frame_idx, min_height=0):
     """Create detections for given frame index from the raw detection matrix.
 
     Parameters
@@ -78,30 +94,74 @@ def create_detections(detection_list, frame_idx, min_height=0):
         Returns detection responses at given frame index.
 
     """
-    if detection_list:
-        print("full")
-    else: 
-        print("empty")
-    detection_class_list = []
-    for frame in detection_list:
-        frame_found =  False
-        # Check if the frame_id matches the desired frame_idx
-        if int(frame.get('frame_id', 0)) == frame_idx:
-            frame_found = True
-            for d in frame["detections"]:
-                if int(d.get('bbox_h', 0)) >= min_height:
-                    # print(d)
-                    detection_class_list.append(
-                        Detection(
-                            [d.get('bbox_x', 0), d.get('bbox_y', 0), d.get('bbox_w', 0), d.get('bbox_h', 0)],
-                            float(d.get('probability', 0.0)),
-                            d.get('features', [])
-                        )
-                    )
-        if frame_found:
-            detection_list.remove(frame)
-    return detection_class_list
+    # if detection_list:
+    #     print("full")
+    # else: 
+    #     print("empty")
+    # detection_class_list = []
+    # for frame in detection_list:
+    #     frame_found =  False
+    #     # Check if the frame_id matches the desired frame_idx
+    #     if int(frame.get('frame_id', 0)) == frame_idx:
+    #         frame_found = True
+    #         for d in frame["detections"]:
+    #             if int(d.get('bbox_h', 0)) >= min_height:
+    #                 # print(d)
+    #                 detection_class_list.append(
+    #                     Detection(
+    #                         [d.get('bbox_x', 0), d.get('bbox_y', 0), d.get('bbox_w', 0), d.get('bbox_h', 0)],
+    #                         float(d.get('probability', 0.0)),
+    #                         d.get('features', [])
+    #                     )
+    #                 )
+    #     if frame_found:
+    #         detection_list.remove(frame)
+    # return detection_class_list
+    frame_indices = detection_mat[:, 0].astype(int)
+    mask = frame_indices == frame_idx
 
+    detection_list = []
+    for row in detection_mat[mask]:
+        bbox, confidence, feature = row[2:6], row[6], row[10:]
+        if bbox[3] < min_height:
+            continue
+        detection_list.append(Detection(bbox, confidence, feature))
+    return detection_list
+
+def gather_frames(batch_size, last_frame_number, kafka_consumer):
+    batchFrames = []
+    for _ in range(batch_size):
+        
+        frame = kafka_consumer.update()
+        # print(f"Received frame: {frame}")
+        if isinstance(frame, dict):
+            batchFrames.append(frame)
+        if batchFrames:
+            # Start by synchronizing the frames from different cams
+            # print("unsynchronized V")
+            # print(batchFrames)
+            # print("unsynchronized A")
+            # synchronize the frames
+            batchFrames, last_frame_number = synchronize_frames(batchFrames, last_frame_number, 30)
+            # print("synchronized V")
+            # print(batchFrames)
+            # print("synchronized A")
+            
+            # Now transform the coordinates into global coordinates
+            # transform_coordinates()
+            
+            # print("grouped V")
+            batchFrames = group_detections(batchFrames)
+            # print(batchFrames)
+            # print("grouped A")
+            # # Lastly filter out the same detection comming from different cams
+            print("filtered V")
+            batchFrames = filter_out_detections(batchFrames)
+            print(batchFrames)
+            print("filtered A")
+        else: 
+            print("No frames gathered")
+    return batchFrames
 
 def run(output_file, min_confidence,
         nms_max_overlap, min_detection_height, max_cosine_distance,
@@ -163,7 +223,7 @@ def run(output_file, min_confidence,
 
         # Update visualization.
         if display:
-            image = np.zeros((1920, 1080, 3), dtype=np.uint8)
+            image = np.zeros((1024, 576, 3), dtype=np.uint8)
             vis.set_image(image.copy())
             vis.draw_detections(detections)
             vis.draw_trackers(tracker.tracks)
@@ -176,62 +236,41 @@ def run(output_file, min_confidence,
             results.append([
                 frame_idx, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
     # Run tracker until key interupt.
-    batchFrames = []
+    batch_frames = []
+    batch_size = 100
     last_frame_number = None
-    is_initialized = False
+    seq_info = {
+            "detections": None,
+            "groundtruth": None,
+            "image_size": [1024, 576, 3],
+            "min_frame_idx": 0,
+            "max_frame_idx": 0,
+            "feature_dim": 128,
+            "update_ms": 33.333
+        }
+    if display:
+        visualizer = live_visualization.Visualization(seq_info, update_ms=33.333)
+    else:
+        visualizer = live_visualization.NoVisualization(seq_info)
+        
     try:
         while True: 
             # Get 'batch_size' number of messages (frames) from kafka; each message is one frame with a number of detections 
             # needs to be large enough to ensure all cameras had time to publish
-            for _ in range(batch_size):
-                frame = kafka_consumer.update()
-                # print(f"Received frame: {frame}")
-                if isinstance(frame, dict):
-                    batchFrames.append(frame)
-            if batchFrames:
-                # Start by synchronizing the frames from different cams
-                print("unsynchronized V")
-                print(batchFrames)
-                print("unsynchronized A")
-                # synchronize the frames
-                batchFrames, last_frame_number = synchronize_frames(batchFrames, last_frame_number, 30)
-                print("synchronized V")
-                print(batchFrames)
-                print("synchronized A")
+            batch_frames = gather_frames(batch_size, last_frame_number, kafka_consumer)
+            seq_info = gather_sequence_info(batch_frames, batch_size)
+            visualizer.run(frame_callback, seq_info)
                 
-                # Now transform the coordinates into global coordinates
-                # transform_coordinates()
-                
-                print("grouped V")
-                batchFrames = group_detections(batchFrames)
-                print(batchFrames)
-                print("grouped A")
-                # Lastly filter out the same detection comming from different cams
-                print("filtered V")
-                batchFrames = filter_out_detections(batchFrames)
-                print(batchFrames)
-                print("filtered A")
-                seq_info = gather_sequence_info(batchFrames, batch_size)
-                if display:
-                    if not is_initialized:
-                        # Only initialize the visualizer once
-                        visualizer = visualization.Visualization(seq_info, update_ms=5)
-                        is_initialized = True
-                else:
-                    visualizer = visualization.NoVisualization(seq_info)
-                visualizer.run(frame_callback, seq_info)
-                # batchFrames.clear()
-            else: 
-                print("No frames gathered")
+            
     except KeyboardInterrupt:
         print('stopped')
     finally:
         kafka_consumer.close()
-    # Store results.
-    f = open(output_file, 'w')
-    for row in results:
-        print('%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1' % (
-            row[0], row[1], row[2], row[3], row[4], row[5]),file=f)
+        # Store results.
+        f = open(output_file, 'w')
+        for row in results:
+            print('%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1' % (
+                row[0], row[1], row[2], row[3], row[4], row[5]),file=f)
 
 
 def bool_string(input_string):
@@ -247,7 +286,7 @@ def parse_args():
     parser.add_argument(
         "--output_file", help="Path to the tracking output file. This file will"
         " contain the tracking results on completion.",
-        default="/tmp/hypotheses.txt")
+        default="tmp/hypotheses.txt")
     parser.add_argument(
         "--min_confidence", help="Detection confidence threshold. Disregard "
         "all detections that have a confidence lower than this value.",
