@@ -5,9 +5,7 @@ import errno
 import argparse
 import numpy as np
 import cv2
-
-
-
+import json
 
 def _run_in_batches(f, data_dict, out, batch_size):
     data_len = len(out)
@@ -136,6 +134,7 @@ def generate_detections(encoder, mot_dir, output_dir, detection_dir=None):
         standard MOTChallenge detections.
 
     """
+    # kafka_producer = KafkaDetectionProducer("localhost:9092")
     if detection_dir is None:
         detection_dir = mot_dir
     try:
@@ -178,10 +177,57 @@ def generate_detections(encoder, mot_dir, output_dir, detection_dir=None):
             detections_out += [np.r_[(row, feature)] for row, feature
                                in zip(rows, features)]
 
-        output_filename = os.path.join(output_dir, "%s.npy" % sequence)
-        np.save(
-            output_filename, np.asarray(detections_out), allow_pickle=False)
+        output_filename = os.path.join(output_dir, "%s.json" % sequence)
+        np.save(output_filename, np.asarray(detections_out), allow_pickle=False)
 
+        
+        # Dictionary to store detections grouped by frame ID
+        frames = {}
+
+        # Group detections by frame ID
+        for detection in detections_out:
+            frame_id = detection[0]
+            if frame_id not in frames:
+                frames[frame_id] = []
+            frames[frame_id].append(detection)
+
+        # Send each frame with detections individually via Kafka
+        all_frames = []
+        for frame_id, detections in frames.items():
+            frame_detections = []
+            for detection in detections:
+                bbox = detection[2:6]
+                prob = detection[6]
+                featurevector = detection[9:]
+
+                detection_data = {
+                    "bbox_x": float(bbox[0]),
+                    "bbox_y": float(bbox[1]),
+                    "bbox_w": float(bbox[2]),
+                    "bbox_h": float(bbox[3]),
+                    "probability": float(prob),
+                    "features": [float(f) for f in featurevector]  
+                }
+                frame_detections.append(detection_data)
+
+            # Construct frame JSON
+            frame = {
+                "frame_id": int(frame_id),
+                "cam_id": detections[0][7],
+                "timestamp": detections[0][8],
+                "detections": frame_detections
+            }
+            
+            # Serialize frame to JSON string
+            #frame_json = json.dumps(frame)
+            all_frames.append(frame)
+        with open(output_filename, "w") as json_file:
+            json.dump(all_frames, json_file)
+            #kafka_producer.publish("timed-images", frame_json)
+    #kafka_producer.producer.flush(300)
+
+    
+        
 
 def parse_args():
     """Parse command line arguments.
@@ -209,6 +255,7 @@ def main():
     encoder = create_box_encoder(args.model, batch_size=32)
     generate_detections(encoder, args.mot_dir, args.output_dir,
                         args.detection_dir)
+    
 
 
 if __name__ == "__main__":
