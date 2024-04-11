@@ -2,34 +2,26 @@ from confluent_kafka import Producer, KafkaException
 import json
 
 class KafkaConsumerWrapper:
-    def __init__(self, broker, group_id, topic):
+    def __init__(self, broker):
         self.conf = {
-            'bootstrap.servers': broker,
-            'group.id': group_id,
-            'auto.offset.reset': 'earliest'
+            'bootstrap.servers': broker
         }
         self.producer = Producer(self.conf)
-        self.producer.subscribe([topic])
 
     def publish(self):
-        
-        msg = self.consumer.poll(0.1)
-
-        if msg is None:
-            return None
-        try:
-            unprocessed_message = json.loads(msg.value().decode('utf-8'))
-        except ValueError as e:
-            print(e)
-            return None
-
-        processed_message = self.process_message(unprocessed_message)
-        return processed_message
+        self.producer.produce()
+        return None
 
     def close(self):
         self.producer.close()
 
-class KafkaDetectionConsumer(KafkaConsumerWrapper):
-    def procuce_message(self):
-    
+class KafkaDetectionProducer(KafkaConsumerWrapper):
+    def publish(self, topic, message):
+        self.producer.produce(topic, message.encode('utf-8'))
         return None
+
+class KafkaCalibrationProducer(KafkaConsumerWrapper):
+    def publish(self, topic, message):
+        self.producer.produce(topic, message.encode('utf-8'))
+        return None
+

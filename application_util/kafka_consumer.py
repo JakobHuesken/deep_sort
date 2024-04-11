@@ -1,5 +1,9 @@
 from confluent_kafka import Consumer, KafkaException
 import json
+import time
+
+class TimeoutError(Exception):
+    pass
 
 class KafkaConsumerWrapper:
     def __init__(self, broker, group_id, topic):
@@ -11,20 +15,27 @@ class KafkaConsumerWrapper:
         self.consumer = Consumer(self.conf)
         self.consumer.subscribe([topic])
 
-    def update(self):
+    def update(self, first_time, timeout=1):
+        start_time = time.time()
+        msg = None
         
-        msg = self.consumer.poll(0.1)
-
-        if msg is None:
-            return None
-        try:
-            unprocessed_message = json.loads(msg.value().decode('utf-8'))
-        except ValueError as e:
-            print(e)
-            return None
-
-        processed_message = self.process_message(unprocessed_message)
-        return processed_message
+        while True:
+            if first_time is False:
+                if time.time() - start_time > timeout:
+                    print("Timeout while waiting for message")
+                    break
+            msg = self.consumer.poll(0.1)
+            print("test")
+            if msg is not None:
+                first_time = False
+                try:
+                    unprocessed_message = json.loads(msg.value().decode('utf-8'))
+                except ValueError as e:
+                    print(e)
+                    return None, None
+                processed_message = self.process_message(unprocessed_message)
+                return processed_message, False
+        return None, False
 
     def process_message(self, json_data):
 
@@ -59,3 +70,22 @@ class KafkaDetectionConsumer(KafkaConsumerWrapper):
 
         # print(json_data)
         return json_data
+
+class KafkaCalibrationConsumer(KafkaConsumerWrapper):
+    def process_message(self, json_data):
+        print("Received JSON data:", json_data)
+        return json_data
+    def update(self):
+        
+        msg = None
+        msg = self.consumer.poll(0.1)
+        if msg is None:
+            return None
+        try:
+            unprocessed_message = json.loads(msg.value().decode('utf-8'))
+        except ValueError as e:
+            print(e)
+            return None
+
+        processed_message = self.process_message(unprocessed_message)
+        return processed_message
