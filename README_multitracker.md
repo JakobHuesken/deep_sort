@@ -42,19 +42,23 @@ $ nano ~/.bashrc
 add export LD_PRELOAD=/lib/aarch64-linux-gnu/libGLdispatch.so.0 at the bottom, save, exit
 ```
 $ source ~/.bashrc
+$ workon opencv_cuda
 ```
 
 Afterwards generate_detections.py should run as expected.
 
 ## Send detections via Kafka
-Configure send_detections.py to the correct file.
+Configure send_detections.py to match the correct file names.
+Run Startup_services.sh only on the main jetson.
+Configure startup_services.sh, send detections and later deep_sort_app_multitracker.py to match the ip of the main jetson.
 ```
-$ send_detections.py
+$ bash ../scripts/startup_services.sh
+$ python tools/send_detections.py
 ```
 This will write the detections into the topic "timed-images".
 
 ## Setup Calibration with MOMC Calibration
-
+If already setup skip to Calibrate Camera
 [MOMC repository](https://github.com/hlrs-vis/multi-object-multi-camera-tracker)
 
 ```
@@ -67,6 +71,8 @@ $ pip install utm
 $ pip install geojson
 $ pip install matplotlib
 ```
+## Calibrate Camera
+
 ### Intrinsic Calibration
 Brio cameras are already calibrated.
 
@@ -91,7 +97,7 @@ objp: !!opencv-matrix
    data: [ point1_x, point1_y, 0.,
         point2_x, point2_y, 0.,
         point3_x, point3_y, 0.,
-        point4_x, point4_y, 0.,
+        point4_x, point4_y, 0.
        ]
 ```
 ### Extrinsic Calibration
@@ -101,7 +107,7 @@ $ python ImageCoordinatesTool2.py -p /usr/local/src/git/tkDNN/build/calibrationF
 ```
 ### Edit config
 ```
-$ nano vhs-calibration/config_vhs_wg_noshow.ini
+$ nano vhs-calibration/config_vhs.ini
 ```
 Edit the following lines:
 ```
@@ -111,7 +117,7 @@ calibration_image_path = /usr/local/src/git/tkDNN/build/calibrationFrame0_undist
 ```
 ### Export the invHmat
 ```
-$ python global_utm_calib.py -p vhs-calibration/config_vhs.in
+$ python global_utm_calib.py -p vhs-calibration/config_vhs.ini
 ```
 Saves the invHmat.
 ```
