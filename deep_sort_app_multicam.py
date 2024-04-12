@@ -55,12 +55,12 @@ def gather_sequence_info(kafka_consumer, batch_size, calibration_dir):
     if batchFrames:
         # Start by synchronizing the frames from different cams
         print("unsynchronized V")
-        print(batchFrames)
+        # print(batchFrames)
         print("unsynchronized A")
         # synchronize the frames
         batchFrames, last_frame_number = synchronize_frames(batchFrames, last_frame_number, 30)
         print("synchronized V")
-        print(batchFrames)
+        # print(batchFrames)
         print("synchronized A")
         print("transformed V")
         # Now transform the coordinates into global coordinates
@@ -68,12 +68,12 @@ def gather_sequence_info(kafka_consumer, batch_size, calibration_dir):
         print("transformed A")
         print("grouped V")
         batchFrames = group_detections(batchFrames)
-        print(batchFrames)
+        # print(batchFrames)
         print("grouped A")
         # # Lastly filter out the same detection comming from different cams
         print("filtered V")
         batchFrames = filter_out_detections(batchFrames)
-        print(batchFrames)
+        # print(batchFrames)
         print("filtered A")
     else: 
         print("No frames gathered")
