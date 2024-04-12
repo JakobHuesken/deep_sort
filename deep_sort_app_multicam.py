@@ -172,7 +172,7 @@ def run(output_file, min_confidence,
 
     """
     # Kafka
-    broker = "localhost:9092"
+    broker = "141.58.8.236:9092"
     group_id = "1"
     topic = "timed-images"
     kafka_consumer = KafkaDetectionConsumer(broker, group_id, topic) 
@@ -267,7 +267,7 @@ def parse_args():
         default=True, type=bool_string)
     parser.add_argument(
         "--batch_size", help="Run the tracker on batch_size increments of frames, effect of different values are not yet discovered",
-        type=int, default=100)
+        type=int, default=400)
     parser.add_argument(
         "--calibration_dir", help="Path to the calibration dir.",
         default="resources/calibration")

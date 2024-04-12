@@ -5,7 +5,7 @@ import json
 import os
 import configparser
 
-kafka_producer = KafkaCalibrationProducer("localhost:9092")
+kafka_producer = KafkaCalibrationProducer("141.58.8.236:9092")
 
 # Read in matrix
 matrix_data = []
