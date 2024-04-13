@@ -16,7 +16,7 @@ from deep_sort.tracker import Tracker
 from deep_sort.multicam_matching import synchronize_frames, filter_out_detections, group_detections, transform_coordinates
 
 
-def gather_sequence_info(kafka_consumer, batch_size, calibration_dir):
+def gather_sequence_info(batch_size, calibration_dir, multicam_threshold):
     """Gather sequence information, such as image filenames, detections,
     groundtruth (if available).
 
@@ -43,14 +43,25 @@ def gather_sequence_info(kafka_consumer, batch_size, calibration_dir):
 
     """
     batchFrames = []
-    first_message = True
     last_frame_number = 0
-    for i in range(batch_size):
-        frame, first_message = kafka_consumer.update(first_message)
-        if frame is None: 
-            continue
-        if isinstance(frame, dict):
-            batchFrames.append(frame)
+    # Kafka
+    broker = "localhost:9092"
+    group_id = "1"
+    topic = "timed-images"
+    kafka_consumer = KafkaDetectionConsumer(broker, group_id, topic) 
+    collected_messages = 0
+    counting_started = False
+    while collected_messages < batch_size:
+        print(collected_messages)
+        frame = kafka_consumer.update()
+        if frame is not None:
+            if not counting_started:
+                counting_started = True
+            if isinstance(frame, dict):
+                batchFrames.append(frame)
+            collected_messages += 1
+        elif counting_started:
+            collected_messages += 1
 
     if batchFrames:
         # Start by synchronizing the frames from different cams
@@ -72,7 +83,7 @@ def gather_sequence_info(kafka_consumer, batch_size, calibration_dir):
         print("grouped A")
         # # Lastly filter out the same detection comming from different cams
         print("filtered V")
-        batchFrames = filter_out_detections(batchFrames)
+        batchFrames = filter_out_detections(batchFrames, multicam_threshold)
         # print(batchFrames)
         print("filtered A")
     else: 
@@ -142,7 +153,7 @@ def create_detections(detection_mat, frame_idx, min_height=0):
 
 def run(output_file, min_confidence,
         nms_max_overlap, min_detection_height, max_cosine_distance,
-        nn_budget, display, batch_size, calibration_dir):
+        nn_budget, display, batch_size, calibration_dir, multicam_threshold):
     """Run multi-target tracker on a particular sequence.
 
     Parameters
@@ -171,13 +182,8 @@ def run(output_file, min_confidence,
         If True, show visualization of intermediate tracking results.
 
     """
-    # Kafka
-    broker = "141.58.8.236:9092"
-    group_id = "1"
-    topic = "timed-images"
-    kafka_consumer = KafkaDetectionConsumer(broker, group_id, topic) 
 
-    seq_info = gather_sequence_info(kafka_consumer, batch_size, calibration_dir)
+    seq_info = gather_sequence_info(batch_size, calibration_dir, multicam_threshold)
     metric = nn_matching.NearestNeighborDistanceMetric(
         "cosine", max_cosine_distance, nn_budget)
     tracker = Tracker(metric)
@@ -271,6 +277,9 @@ def parse_args():
     parser.add_argument(
         "--calibration_dir", help="Path to the calibration dir.",
         default="resources/calibration")
+    parser.add_argument(
+        "--multicam_threshold", help="Gating threshold for euclidean multicam distance between objects."
+        , type=float, default=0.2)
     return parser.parse_args()
 
 
@@ -279,4 +288,4 @@ if __name__ == "__main__":
     run(
         args.output_file,
         args.min_confidence, args.nms_max_overlap, args.min_detection_height,
-        args.max_cosine_distance, args.nn_budget, args.display, args.batch_size, args.calibration_dir)
+        args.max_cosine_distance, args.nn_budget, args.display, args.batch_size, args.calibration_dir, args.multicam_threshold)

@@ -1,6 +1,8 @@
 from confluent_kafka import Consumer, KafkaException
 import json
 import time
+import signal
+import sys
 
 class TimeoutError(Exception):
     pass
@@ -14,28 +16,22 @@ class KafkaConsumerWrapper:
         }
         self.consumer = Consumer(self.conf)
         self.consumer.subscribe([topic])
+        signal.signal(signal.SIGINT, self.signal_handler)
 
-    def update(self, first_time, timeout=1):
-        start_time = time.time()
-        msg = None
+    def update(self):
         
-        while True:
-            if first_time is False:
-                if time.time() - start_time > timeout:
-                    print("Timeout while waiting for message")
-                    break
-            msg = self.consumer.poll(0.1)
-            print("test")
-            if msg is not None:
-                first_time = False
-                try:
-                    unprocessed_message = json.loads(msg.value().decode('utf-8'))
-                except ValueError as e:
-                    print(e)
-                    return None, None
-                processed_message = self.process_message(unprocessed_message)
-                return processed_message, False
-        return None, False
+        msg = self.consumer.poll(0.1)
+        if msg is not None:
+            try:
+                unprocessed_message = json.loads(msg.value().decode('utf-8'))
+            except ValueError as e:
+                print(e)
+                return None, None
+            processed_message = self.process_message(unprocessed_message)
+            return processed_message
+        else:
+            return None
+        
 
     def process_message(self, json_data):
 
@@ -44,6 +40,10 @@ class KafkaConsumerWrapper:
 
     def close(self):
         self.consumer.close()
+    def signal_handler(self, sig, frame):
+        print('Ctrl+C pressed. Closing consumer.')
+        self.close()
+        sys.exit(0)
 
 class KafkaDetectionConsumer(KafkaConsumerWrapper):
     def process_message(self, json_data):
