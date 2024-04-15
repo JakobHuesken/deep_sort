@@ -45,7 +45,7 @@ def gather_sequence_info(batch_size, calibration_dir, multicam_threshold):
     batchFrames = []
     last_frame_number = 0
     # Kafka
-    broker = "localhost:9092"
+    broker = "141.58.8.236:9092"
     group_id = "1"
     topic = "timed-images"
     kafka_consumer = KafkaDetectionConsumer(broker, group_id, topic) 
