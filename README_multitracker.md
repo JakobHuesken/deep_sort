@@ -103,7 +103,7 @@ objp: !!opencv-matrix
 ### Extrinsic Calibration
 Click at calibration points in the same way the object points and then press enter.
 ```
-$ python ImageCoordinatesTool2.py -p /usr/local/src/git/tkDNN/build/calibrationFrame0.jpg
+$ python ImageCoordinatesTool2.py -p /usr/local/src/git/tkDNN/build/calibrationFrame0_undistorted.jpg
 ```
 ### Edit config
 ```
@@ -141,4 +141,11 @@ Saves the calibration matrices as a .npy file.
 
 ```
 $ python deep_sort_app_multicam.py
+```
+
+# Evaluation
+
+```
+$ pip install pandas
+$ python tools/evaluate_multicam.py
 ```
