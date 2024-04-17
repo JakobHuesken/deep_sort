@@ -144,8 +144,12 @@ $ python deep_sort_app_multicam.py
 ```
 
 # Evaluation
-
+Currently you have to manually rename the results or store them somewhere else, cause every result will be called hypotheses.txt.
+Put the hypotheses files from tmp/hypotheses into a folder to sort/differenciate them. Structure is irrelevent, but keep hypotheses at the start.
+E.g. hypostheses_15_04_something.txt.
+Specify the parent folder in tools/evaluate_multicam.py
 ```
 $ pip install pandas
 $ python tools/evaluate_multicam.py
 ```
+Evaluation will be in parent folder.
