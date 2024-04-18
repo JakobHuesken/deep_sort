@@ -122,7 +122,7 @@ def process_files(directory):
         # Count object ID switches
         id_switches = count_object_id_switches(detections)
 
-        visualize_bounding_boxes(detections, directory, file_path)
+        # visualize_bounding_boxes(detections, directory, file_path)
         
         # Append results to the results string
         results_str += f"File: {file_path}\n"
